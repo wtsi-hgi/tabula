@@ -57,11 +57,16 @@ module Tabula.Command.Record (
         else 
           return Nothing
       -- Set the old environment
-      oldEnv <- fmap Map.fromList $ case oldRecord of
+      oldEnv <- case oldRecord of
         Just e ->
-          return $ indifferentMerge (posteriorEnv e) (priorEnv e)
-        Nothing -> getEnvironment
-          -- Create a shell
+          return . Map.fromList $ indifferentMerge (posteriorEnv e) (priorEnv e)
+        Nothing -> getEnvironment >>= return . addHistIgnore . Map.fromList
+          where addHistIgnore env = (flip $ Map.insert "HISTIGNORE") env $
+                  "[ \\t]*" ++ case Map.lookup "HISTIGNORE" env of
+                    Just a -> ":" ++ a
+                    Nothing -> "" 
+
+      -- Create a shell
       shell@(Shell i _ _ _) <- create (Just . Map.toAscList $ oldEnv)
       -- Set controlling terminal to raw:
       getControllingTerminal >>= \pt -> bracketChattr pt setRaw $ do
@@ -90,17 +95,19 @@ module Tabula.Command.Record (
     stopChan <- atomically $ newTBMChan 1 -- Just contains the 'Stop' message
     let channels = (inChan, errChan, outChan, stopChan)
         promptCommand = tabula ++ " prompt \\$? \\$(history 1 | tr -s ' ' | cut -d' ' -f3-)"
+        promptCommandUnquoted = tabula ++ " prompt $? $(history 1 | tr -s ' ' | cut -d' ' -f3-)"
         trapCommand = "trap '" ++ tabula ++ " trap $BASHPID $PPID $BASH_COMMAND' DEBUG"
 
     injectEnv s "PROMPT_COMMAND" promptCommand
-    hPutStrLn i $ trapCommand
+    putIgnoredLn i $ trapCommand
     -- Start listening daemon in background thread
     (done, soc) <- daemon dest channels 
-                    [promptCommand, trapCommand, "clear"] bufSize
+                    [promptCommand, trapCommand, promptCommandUnquoted, "clear"] 
+                    bufSize
     sn <- socketName soc
     -- Inject relevant things
     injectEnv s "TABULA_PORT" sn
-    hPutStrLn i "clear"
+    putIgnoredLn i "clear"
     -- Display the shell to the user
     exitStatus <- waitRemote ps
     socFile <- socketName soc
@@ -117,6 +124,7 @@ module Tabula.Command.Record (
         case name of 
           SockAddrUnix sn -> return sn
           _ -> error "No valid socket address."
+      putIgnoredLn h = hPutStrLn h . (" " ++)
 
   tee :: Int -> Handle -> Handle -> IO BSChan
   tee bufSize from to = do
