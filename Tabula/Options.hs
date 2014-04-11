@@ -40,13 +40,16 @@ module Tabula.Options (
     , readProjectName
     , showAsHistory
   ) where
+
   import Data.Char (toUpper)
+  import Data.Monoid (mconcat)
   import Data.Version (showVersion)
   import Data.Vinyl
   import Database.Redis (PortID(PortNumber))
 
   import Options.Applicative hiding (command)
   import qualified Options.Applicative as Opt
+  import Options.Applicative.Types (ReadM(..))
 
   import System.Log (Priority(..))
 
@@ -162,19 +165,19 @@ module Tabula.Options (
                                             <> help "Set logging level (default ERROR)"))
                 <+> quiet <-: (switch (long "quiet" <> short 'q' <> help "Disable logging"))
 
-  options = info (version <*> helper <*> commands <++> (dist commonOptions)) (
+  options = info (version <*> visibleHelper <*> commands <++> (dist commonOptions)) (
            header "tabula - a utility for recording shell sessions."
         <> progDesc "Open a recorded shell session for a specific project.")
     where
       commands = subparser (
             Opt.command "start" (
-              info (fmap ((command =:) . Record) $ dist recordOptions) 
+              info (visibleHelper <*> (fmap ((command =:) . Record) $ dist recordOptions))
                 (progDesc "Start or resume a project session."))
             <> Opt.command "cat" (
-              info (fmap ((command =:) . Cat) $ dist catOptions)
+              info (visibleHelper <*> (fmap ((command =:) . Cat) $ dist catOptions))
                 (progDesc "Print a project session to stdout."))
             <> Opt.command "ls" (
-              info (fmap ((command =:) . List) $ dist listOptions)
+              info (visibleHelper <*> (fmap ((command =:) . List) $ dist listOptions))
                 (progDesc "List all projects created at a destination."))
           )
       (<++>) a b = liftA2 (<+>) a b
@@ -221,3 +224,22 @@ module Tabula.Options (
     in case P.parse destinations "Destination" s of
       Left err -> fail $ "Invalid destination: " ++ show err
       Right x -> return x
+
+  -- | An option that always fails but which is visible.
+  --
+  -- When this option is encountered, the option parser immediately aborts with
+  -- the given parse error. The option is shown in the usage text. 
+  visibleAbortOption :: ParseError -> Mod OptionFields (a -> a) -> Parser (a -> a)
+  visibleAbortOption err m = nullOption . (`mappend` m) $ mconcat
+    [ reader (const (ReadM (Left err)))
+    , noArgError err
+    , value id
+    , metavar "" ]
+
+  -- | A visible \"helper\" option which always fails.
+  visibleHelper :: Parser (a -> a)
+  visibleHelper = visibleAbortOption ShowHelpText $ mconcat
+    [ long "help"
+    , short 'h'
+    , help "Show this help text" ]
+
