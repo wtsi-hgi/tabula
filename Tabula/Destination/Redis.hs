@@ -27,11 +27,12 @@ module Tabula.Destination.Redis (
   import Control.Exception (evaluate, try)
   import Control.Monad (void)
   import Control.Monad.IO.Class
+  import Control.Monad.Trans.Resource
 
   import Data.Aeson
   import qualified Data.ByteString.Char8 as B
   import qualified Data.ByteString.Lazy as L
-  import Data.Conduit
+  import Data.Conduit hiding (connect)
   import qualified Data.Conduit.List as DCL
   import Data.Maybe (catMaybes)
   import Database.Redis hiding (decode)

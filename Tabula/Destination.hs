@@ -21,6 +21,7 @@ module Tabula.Destination where
   import Control.Applicative
   import Data.Conduit
   import Tabula.Record
+  import Control.Monad.Trans.Resource
   import qualified Text.Parsec as P
 
   data Project = UserProject String String
