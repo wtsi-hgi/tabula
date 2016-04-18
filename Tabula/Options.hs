@@ -41,7 +41,6 @@ module Tabula.Options (
     , showAsHistory
   ) where
 
-  import Control.Monad.Trans.Reader
   import Data.Char (toUpper)
   import Data.Monoid (mconcat)
   import Data.Version (showVersion)

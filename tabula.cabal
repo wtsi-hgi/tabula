@@ -89,7 +89,7 @@ executable tabula
                       , hslogger
                       , ioctl
                       , network
-                      , optparse-applicative
+                      , optparse-applicative == 0.8.1
                       , parsec
                       , process >= 1.2.0
                       , random
